@@ -12,7 +12,6 @@ switchesVarDefaults = (
     )
 
 
-
 progname = "echoserver"
 paramMap = params.parseParams(switchesVarDefaults)
 
