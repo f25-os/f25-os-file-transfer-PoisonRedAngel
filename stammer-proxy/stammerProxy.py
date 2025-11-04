@@ -8,7 +8,7 @@ import random
 
 import re
 
-sys.path.append("../lib")       # for params
+sys.path.append("lib")       # for params
 import params
 
 switchesVarDefaults = (

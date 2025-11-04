@@ -10,53 +10,68 @@ import sys
 import os
 from framing import FramedWriter
 from buffers import BufferedWriter
-from lib import params # This is a helper from the lib folder to parse command-line arguments.
+# We no longer need to import 'params' or change the sys.path
 
 def main():
-    # --- 1. Parse Command-Line Arguments ---
-    # Setup for the params library to handle arguments like -s for the server address.
-    switchesVarDefaults = (
-        (('-s', '--server'), 'server', "127.0.0.1:50001"),
-        (('-?', '--usage'), "usage", False),
-    )
-    paramMap = params.parseParams(switchesVarDefaults)
-    server, usage = paramMap["server"], paramMap["usage"]
+    # --- 1. Parse Command-Line Arguments Manually ---
+    server_address = "127.0.0.1:50001"  # Default server
+    files_to_add = []
+    
+    # Manually loop through arguments
+    args = sys.argv[1:]  # Get all arguments except the script name
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        # Check for the -s or --server flag
+        if arg == '-s' or arg == '--server':
+            # Check if there's a value *after* the flag
+            if i + 1 < len(args):
+                server_address = args[i+1]
+                i += 2  # Skip both the flag and its value
+            else:
+                os.write(2, b"Error: -s flag requires an argument\n")
+                sys.exit(1)
+        # Check for the usage flag
+        elif arg == '-?' or arg == '--usage':
+            print("Usage: %s -s <server>:<port> <file1> [file2...]" % sys.argv[0])
+            sys.exit(1)
+        # If it's not a flag, it must be a filename
+        else:
+            files_to_add.append(arg)
+            i += 1
 
-    if usage or len(sys.argv) < 1:
+    # Now, check if we actually got any filenames
+    if not files_to_add:
+        os.write(2, b"Error: No files specified for transfer.\n")
         print("Usage: %s -s <server>:<port> <file1> [file2...]" % sys.argv[0])
         sys.exit(1)
     
-    files_to_add = sys.argv
-    
+    # Try to parse the server address
     try:
-        serverHost, serverPort = server.split(":")
+        serverHost, serverPort = server_address.split(":")
         serverPort = int(serverPort)
     except:
-        print("Can't parse server:port from '%s'" % server)
+        os.write(2, f"Error: Can't parse server:port from '{server_address}'\n".encode())
         sys.exit(1)
 
     # --- 2. Connect to the Server ---
-    # Use the code from the echoClient.py demo to establish a connection.
     try:
-        # Create a new socket.
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # Connect to the server's address and port.
         s.connect((serverHost, serverPort))
     except Exception as e:
-        print(f"Error connecting to server: {e}")
+        os.write(2, f"Error connecting to server: {e}\n".encode())
         sys.exit(1)
 
-    print("Connected to server.")
+    print(f"Connected to server at {server_address}.")
 
     # --- 3. Send the Files ---
-    # Get the socket's raw file descriptor.
     socket_fd = s.fileno()
     
-    # Create an instance of our FramedWriter, telling it to write to the socket.
     # We must create the BufferedWriter first, then the FramedWriter.
-    writer = FramedWriter(BufferedWriter(socket_fd))
+    # Assumes FramedWriter was modified to accept a buffer object
+    writer = FramedWriter(BufferedWriter(socket_fd)) 
 
-    # Loop through each file provided on the command line.
+    print(f"Sending files: {', '.join(files_to_add)}")
     for filename in files_to_add:
         try:
             # Tell our writer to archive the file into the socket.

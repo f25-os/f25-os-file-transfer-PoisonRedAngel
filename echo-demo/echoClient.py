@@ -2,9 +2,8 @@
 
 # Echo client program
 import socket, sys, re, os
-from lib import params
-#sys.path.append("../lib")       # for params
-#import params 
+sys.path.append("../lib")       # for params
+import params 
 
 switchesVarDefaults = (
     # command line switches, variable name, default value
@@ -32,6 +31,7 @@ try:
 except:
     print("Can't parse server:port from '%s'" % server)
     sys.exit(1)
+
 #/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 s = None # This is a flag. After the loop is finished, we can check if s is None: to see if we failed to connect. If it's still None, it means none of our connection attempts worked
 # Try each of the possible addresses until one works.This is a powerful helper function, not a direct system call. Its job is to figure out all the possible ways to connect to a given server.

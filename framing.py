@@ -5,9 +5,9 @@ import os
 from buffers import BufferedWriter, BufferedReader
 
 class FramedWriter:
-    def __init__(self):
-        # Create an instance of our BufferedWriter to handle efficient writing.
-        self.writer = BufferedWriter(1)#self is the instance of the class FramedWriter
+    def __init__(self, buffered_writer_object):
+        # Now it uses the object you pass in
+        self.writer = buffered_writer_object
 
     #Finds a file's size, creates a header, and writes the header and data
     def write_file(self, filename_to_add):
@@ -46,9 +46,9 @@ class FramedWriter:
         self.writer.close()#close the underlying buffered writer, flushing any remaining data
 
 class FramedReader:
-    def __init__(self):
-        # Create an instance of our BufferedReader to handle efficient reading.
-        self.reader = BufferedReader(0)
+    def __init__(self, buffered_reader_object):
+        # Now it uses the object you pass in
+        self.reader = buffered_reader_object
 
     def read_next_file(self):
         """Reads the next header and data chunk from the archive, saving it to a file."""
