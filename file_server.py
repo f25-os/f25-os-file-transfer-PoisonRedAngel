@@ -13,6 +13,7 @@ clients concurrently.
 import socket 
 import os
 import time 
+import sys
 from framing import FramedReader   
 from buffers import BufferedReader 
 sys.path.append("lib")   
@@ -160,7 +161,7 @@ def main():
             # --- CHILD PROCESS CODE ---
             # forkResult == 0 means "I am the new child process."
             s.close() # The child does not need the main listening socket. only the parent needs it. the child needs the connection socket.
-            handle_client(conn, addr) # Go do the work for this client. the conn is the connection socket specific to this client and addr is the client's address info 
+            handle_client(conn, addr) # Go do the work for this client. the conn is the connection socket specific to this client and
             # The child will call sys.exit(0) inside that function.
             
         else:

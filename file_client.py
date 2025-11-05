@@ -5,84 +5,108 @@ File transfer client. Connects to a server and sends one or more files
 using a custom framing protocol.
 """
 
-import socket
-import sys
-import os
-from framing import FramedWriter
-from buffers import BufferedWriter
-# We no longer need to import 'params' or change the sys.path
+# --- Block 1: Imports and Setup ---
+import socket  
+import sys     
+import os    
+from framing import FramedWriter   
+from buffers import BufferedWriter 
+sys.path.append("lib")  
+import params       
 
 def main():
-    # --- 1. Parse Command-Line Arguments Manually ---
-    server_address = "127.0.0.1:50001"  # Default server
-    files_to_add = []
+    # --- Block 2: Command-Line Argument Parsing ---
     
-    # Manually loop through arguments
-    args = sys.argv[1:]  # Get all arguments except the script name
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        # Check for the -s or --server flag
-        if arg == '-s' or arg == '--server':
-            # Check if there's a value *after* the flag
-            if i + 1 < len(args):
-                server_address = args[i+1]
-                i += 2  # Skip both the flag and its value
-            else:
-                os.write(2, b"Error: -s flag requires an argument\n")
-                sys.exit(1)
-        # Check for the usage flag
-        elif arg == '-?' or arg == '--usage':
-            print("Usage: %s -s <server>:<port> <file1> [file2...]" % sys.argv[0])
-            sys.exit(1)
-        # If it's not a flag, it must be a filename
-        else:
-            files_to_add.append(arg)
-            i += 1
+    # Define the command-line flags this program accepts.
+    switchesVarDefaults = (
+        # (flags, variable_name, default_value)
+        (('-s', '--server'), 'server', "127.0.0.1:50001"), # -s flag, stores in 'server'
+        (('-?', '--usage'), "usage", False),          # -? (help) flag, stores in 'usage'
+    )
+    
+    # Run the "smarter" params.py parser on the command-line args (sys.argv)
+    paramMap = params.parseParams(switchesVarDefaults)
+    
+    # Get the server address from the parser results (e.g., "127.0.0.1:50000")
+    server_address = paramMap["server"]
+    
+    # Get the list of "positional" arguments (filenames) that params.py collected
+    files_to_add = paramMap["positionalArgs"] 
 
-    # Now, check if we actually got any filenames
-    if not files_to_add:
-        os.write(2, b"Error: No files specified for transfer.\n")
+    # Check for errors:
+    # 1. Did the user ask for help ('-?')
+    # 2. Did the user forget to provide any filenames?
+    if paramMap["usage"] or not files_to_add:
+        # If either is true, print the correct usage and exit.
         print("Usage: %s -s <server>:<port> <file1> [file2...]" % sys.argv[0])
-        sys.exit(1)
+        sys.exit(1) # Exit with an error code
     
-    # Try to parse the server address
+    # Try to split the server address (e.g., "127.0.0.1:50000") into host and port
     try:
-        serverHost, serverPort = server_address.split(":")
-        serverPort = int(serverPort)
+        serverHost, serverPort = server_address.split(":") # Splits at the ":"
+        serverPort = int(serverPort) # Converts the port string "50000" to a number
     except:
+        # If split() or int() fails, the format was wrong.
         os.write(2, f"Error: Can't parse server:port from '{server_address}'\n".encode())
         sys.exit(1)
 
-    # --- 2. Connect to the Server ---
+    # --- Block 3: Connect to the Server ---
+    
+    # This 'try' block catches network errors (e.g., "Connection refused")
     try:
+        # 1. Ask the OS for a new, empty socket "plug"
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        # 2. Tell the socket to connect to the server's address.
+        # This is a "blocking call" - the program pauses here until
+        # the connection is made or it fails.
         s.connect((serverHost, serverPort))
     except Exception as e:
+        # 'e' holds the error message (e.g., "Connection refused")
         os.write(2, f"Error connecting to server: {e}\n".encode())
         sys.exit(1)
 
     print(f"Connected to server at {server_address}.")
 
-    # --- 3. Send the Files ---
+    # --- Block 4: Send the Files ---
+    
+    # 1. Get the raw OS file descriptor (a number) for our new socket 's'.
+    # This is the "pipe" that our BufferedWriter will write to.
     socket_fd = s.fileno()
     
-    # We must create the BufferedWriter first, then the FramedWriter.
-    # Assumes FramedWriter was modified to accept a buffer object
+    # 2. Build our abstraction layers, from the bottom up:
+    #    - BufferedWriter(socket_fd): Creates a writer that reliably writes
+    #      bytes to the network socket.
+    #    - FramedWriter(...): Creates our file-packaging tool and tells it
+    #      to use the BufferedWriter as its destination.
     writer = FramedWriter(BufferedWriter(socket_fd)) 
 
     print(f"Sending files: {', '.join(files_to_add)}")
+    
+    # 3. Loop through the "to-do list" (shopping list) of filenames
     for filename in files_to_add:
         try:
-            # Tell our writer to archive the file into the socket.
+            # 4. Tell the FramedWriter to do its job on this one file.
+            # This is where the magic happens:
+            # - FramedWriter opens the file, gets its size, and creates the 108-byte header.
+            # - FramedWriter writes the header to the BufferedWriter.
+            # - FramedWriter reads the file's data and writes it to the BufferedWriter.
+            # - The BufferedWriter sends all those bytes over the network.
             writer.write_file(filename)
         except FileNotFoundError:
+            # Catch error if the user typed a bad filename
             os.write(2, f"Error: Input file '{filename}' not found.\n".encode())
     
-    # Close the writer, which flushes the final buffer and closes the socket connection.
+    # 5. We are done sending all files.
+    # This calls writer.close() -> BufferedWriter.close() -> os.close(socket_fd).
+    # This flushes any remaining data in the buffer and closes the
+    # socket, which is the "hang up" signal that tells the server we're done.
     writer.close()
     
     print("File transfer complete.")
 
+# --- Block 5: Main Execution Guard ---
+# This is a standard Python check:
+# "Is this script being run directly?" (vs. being imported by another script)
 if __name__ == "__main__":
-    main()
+    main() # If yes, run the main function.

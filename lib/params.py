@@ -13,6 +13,10 @@ def parseParams(_switchesVarDefaults):
     paramMap = {}
     switchesVarDefaults = _switchesVarDefaults
     swVarDefaultMap = {}       # map from cmd switch to param var name
+    
+    # This is the new list that will hold filenames
+    paramMap['positionalArgs'] = [] # <--- NEW
+
     for switches, param, default in switchesVarDefaults:
         for sw in switches:
             swVarDefaultMap[sw] = (param, default)
@@ -20,12 +24,18 @@ def parseParams(_switchesVarDefaults):
     try:
         while len(argv):
             sw = argv[0]; del argv[0]
-            paramVar, defaultVal = swVarDefaultMap[sw]
-            if (defaultVal):
-                val = argv[0]; del argv[0]
-                paramMap[paramVar] = val
-            else:
-                paramMap[paramVar] = True
+
+            # This 'if' is the new "smarter" logic
+            if sw in swVarDefaultMap: # <--- NEW: Is this a known flag?
+                paramVar, defaultVal = swVarDefaultMap[sw]
+                if (defaultVal):
+                    val = argv[0]; del argv[0]
+                    paramMap[paramVar] = val
+                else:
+                    paramMap[paramVar] = True
+            else: # <--- NEW: If it's not a known flag, it must be a filename
+                paramMap['positionalArgs'].append(sw) # <--- NEW: Add it to our list
+                
     except Exception as e:
         print("Problem parsing parameters (exception=%s)" % e)
         usage()
@@ -40,4 +50,3 @@ def usage():
             else:
                 print(" [%s]   (%s if present)" % (sw, param))
     sys.exit(1)
-
